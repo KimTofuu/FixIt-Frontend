@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Head from "next/head";
-import L from "leaflet";
+import dynamic from "next/dynamic";
 import "leaflet/dist/leaflet.css";
 import styles from "./AdminMap.module.css";
 import Image from "next/image";
@@ -44,14 +44,19 @@ export default function AdminMapPage() {
   });
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<StatusFilter>("All");
+  const [isMounted, setIsMounted] = useState(false);
   
-  const mapRef = useRef<L.Map | null>(null);
+  const mapRef = useRef<any>(null);
+  const leafletRef = useRef<any>(null);
   const defaultProfilePic = "https://cdn-icons-png.flaticon.com/512/149/149071.png";
 
   // Choose pin icon based on report status
   const getIconByStatus = (status?: string) => {
+    if (!leafletRef.current) return null;
+    const L = leafletRef.current;
+    
     const s = (status || "").toLowerCase();
-    let iconUrl = "/images/pin_reported.png"; // default: reported / pending
+    let iconUrl = "/images/pin_reported.png";
     if (s.includes("resolve")) {
       iconUrl = "/images/pin_resolved.png";
     } else if (s.includes("progress") || s.includes("process")) {
@@ -61,9 +66,8 @@ export default function AdminMapPage() {
     }
     return L.icon({
       iconUrl,
-      // Slightly wider, slightly shorter
       iconSize: [36, 44],
-      iconAnchor: [18, 44], // bottom-center
+      iconAnchor: [18, 44],
       popupAnchor: [0, -40],
     });
   };
@@ -156,20 +160,29 @@ export default function AdminMapPage() {
   }, []);
 
   useEffect(() => {
-    if (mapRef.current) return;
-    const map = L.map("map").setView([14.8292, 120.2828], 13);
-    mapRef.current = map;
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>',
-    }).addTo(map);
+    setIsMounted(true);
   }, []);
 
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
+    if (!isMounted || mapRef.current) return;
+    
+    import('leaflet').then((L) => {
+      leafletRef.current = L;
+      const map = L.map("map").setView([14.8292, 120.2828], 13);
+      mapRef.current = map;
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>',
+      }).addTo(map);
+    });
+  }, [isMounted]);
 
-    map.eachLayer((layer) => {
+  useEffect(() => {
+    const map = mapRef.current;
+    const L = leafletRef.current;
+    if (!map || !L) return;
+
+    map.eachLayer((layer: any) => {
       if (layer instanceof L.Marker) {
         map.removeLayer(layer);
       }
@@ -195,7 +208,10 @@ export default function AdminMapPage() {
         const lng = parseFloat(String(report.longitude));
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
-        const marker = L.marker([lat, lng], { icon: getIconByStatus(report.status) }).addTo(map);
+        const icon = getIconByStatus(report.status);
+        if (!icon) return;
+
+        const marker = L.marker([lat, lng], { icon }).addTo(map);
 
         const userName = report.user ? `${report.user.fName ?? ""} ${report.user.lName ?? ""}`.trim() || "Anonymous" : "Anonymous";
         const userPic = report.user?.profilePicture?.url || defaultProfilePic;
@@ -224,6 +240,10 @@ export default function AdminMapPage() {
   const handleFilterClick = (status: StatusFilter) => {
     setFilterStatus((prevStatus) => (prevStatus === status ? "All" : status));
   };
+
+  if (!isMounted) {
+    return null;
+  }
 
   return (
     <>

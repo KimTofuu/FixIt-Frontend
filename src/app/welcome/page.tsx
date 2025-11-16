@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { toast } from "react-toastify";
 import styles from "./Welcome.module.css";
 
-export default function WelcomePage() {
-  const router = useRouter();
+function WelcomeContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const name = searchParams.get("name") || "User";
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showProfileForm, setShowProfileForm] = useState(false);
   const [profileData, setProfileData] = useState({
@@ -179,7 +180,7 @@ export default function WelcomePage() {
             </>
           ) : (
             <>
-              <h1 className={styles.title}>Welcome, Resident!</h1>
+              <h1 className={styles.title}>Welcome, {name}!</h1>
               <p className={styles.subtitle}>
                 FixItPH keeps your community responsive. Submit issues, track progress, and stay informed about every
                 resolution around you.
@@ -197,5 +198,13 @@ export default function WelcomePage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function WelcomePage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <WelcomeContent />
+    </Suspense>
   );
 }
